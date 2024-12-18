@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><script type="text/javascript" src="/___vscode_livepreview_injected_script"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>流程编辑器</title>
+    <style>
+        :root {
+            --background-dark: #1E1E1E;
+            --text-color: #FFFFFF;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--background-dark);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell;
+            overflow: hidden;
+        }
+
+        .main-content {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* 左侧安装列表 */
+        .installed-list {
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            width: 200px;
+            background: #2D2D2D;
+            border-radius: 6px;
+            padding: 12px;
+        }
+
+        .installed-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px;
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        /* 流程节点 */
+        .flow-node {
+            position: absolute;
+            background: #2D2D2D;
+            border-radius: 6px;
+            padding: 12px;
+            min-width: 180px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: grab;
+            user-select: none;
+            transition: box-shadow 0.2s ease;
+            transition: all 300ms ease;  /* 添加全局过渡效果 */
+        }
+
+        .flow-node:hover {
+            box-shadow: 0 0 0 1px rgba(82, 255, 168, 0.5);
+        }
+
+        .flow-node:active {
+            cursor: grabbing;
+            box-shadow: 0 0 0 1px rgba(82, 255, 168, 0.8);
+        }
+
+        .flow-node.dragging {
+            opacity: 0.9;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            transition: none;  /* 拖拽时禁用过渡效果 */
+        }
+
+        .node-content {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .node-icon {
+            width: 20px;
+            height: 20px;
+            padding: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .node-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .node-label {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .node-type {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* 连接线 */
+        .edge {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            top: 0;
+            left: 0;
+        }
+
+        .edge path {
+            stroke: rgba(255, 255, 255, 0.2);
+            stroke-width: 2;
+            fill: none;
+            stroke-dasharray: 8;
+            animation: flowAnimation 30s linear infinite;
+        }
+
+        .edge[data-type="result"] path {
+            stroke: rgba(82, 255, 168, 0.3);
+            stroke-width: 2.5;
+            stroke-dasharray: 12;
+            animation: resultFlowAnimation 20s linear infinite;
+        }
+
+        .condition-label {
+            font-size: 12px;
+            fill: rgba(255, 255, 255, 0.5);
+        }
+
+        /* 工具栏 */
+        .toolbar {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            background: rgba(45, 45, 45, 0.9);
+            padding: 8px;
+            border-radius: 6px;
+            max-width: 320px;
+        }
+
+        .api-button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .api-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .api-icon {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* 右键菜单 */
+        .context-menu {
+            position: absolute;
+            background: #2D2D2D;
+            border-radius: 6px;
+            padding: 4px 0;
+            min-width: 200px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+        }
+
+        .menu-item {
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .menu-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .shortcut {
+            margin-left: auto;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 12px;
+        }
+
+        .input-container {
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            width: 240px;
+        }
+
+        .resource-input {
+            width: 100%;
+            padding: 12px;
+            background: #2D2D2D;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .resource-input:focus {
+            border-color: rgba(82, 255, 168, 0.5);
+        }
+
+        .resource-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .resource-preview {
+            width: 100%;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .image-preview img,
+        .video-preview video {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .flow-node[data-type="image-resource"],
+        .flow-node[data-type="video-resource"] {
+            min-width: 240px;
+        }
+
+        /* 添加默认错误图片样式 */
+        .image-preview img.error {
+            object-fit: contain;
+            padding: 20px;
+            background: rgba(255, 0, 0, 0.1);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            z-index: 2000;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            position: relative;
+            margin: auto;
+            padding: 20px;
+            width: 90%;
+            height: 90%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .close-button {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            color: #fff;
+            font-size: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+        }
+
+        .close-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .resource-preview img {
+            cursor: zoom-in;
+        }
+
+        .result-icon {
+            width: 20px;
+            height: 20px;
+            padding: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(82, 255, 168, 0.8);
+        }
+
+        .result-icon svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .edge[data-type="resource"] path {
+            stroke: rgba(255, 255, 255, 0.2);
+            stroke-width: 1.5px;
+            stroke-dasharray: 4 4;  /* 虚线效果 */
+        }
+
+        .edge[data-type="result"] path {
+            stroke: rgba(82, 255, 168, 0.3);
+            stroke-width: 2px;
+        }
+
+        /* 确保 SVG 路径动画生效 */
+        @keyframes followPath {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .result-preview {
+            width: 100%;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .result-preview .resource-preview {
+            margin-top: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            cursor: zoom-in;
+        }
+
+        .result-preview img {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 4px;
+            transition: transform 0.2s ease;
+        }
+
+        .result-preview img:hover {
+            transform: scale(1.02);
+        }
+
+        /* 连接线动画相关样式 */
+        .edge {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            top: 0;
+            left: 0;
+        }
+
+        .edge path {
+            stroke: rgba(255, 255, 255, 0.2);
+            stroke-width: 2;
+            fill: none;
+            stroke-dasharray: 8;
+            animation: flowAnimation 30s linear infinite;
+        }
+
+        .edge[data-type="result"] path {
+            stroke: rgba(82, 255, 168, 0.3);
+            stroke-width: 2.5;
+            stroke-dasharray: 12;
+            animation: resultFlowAnimation 20s linear infinite;
+        }
+
+        /* 流动动画 */
+        @keyframes flowAnimation {
+            from {
+                stroke-dashoffset: 100;
+            }
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes resultFlowAnimation {
+            from {
+                stroke-dashoffset: 200;
+            }
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        /* 节点连接点样式 */
+        .node-port {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            z-index: 100;  /* 确保连接点在最上层 */
+        }
+
+        /* 添加连接点的感应区域 */
+        .node-port::before {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: transparent;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: -1;
+        }
+
+        /* 鼠标靠近时的效果 */
+        .node-port:hover {
+            width: 12px;
+            height: 12px;
+            background: rgba(82, 255, 168, 0.8);
+            transform: scale(1.8);
+            box-shadow: 0 0 10px rgba(82, 255, 168, 0.5);
+        }
+
+        /* 输入输出端口位置调整 */
+        .node-port.input {
+            left: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .node-port.output {
+            right: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        /* 连线状态下的连接点样式 */
+        .connecting .node-port {
+            background: rgba(82, 255, 168, 0.8);
+        }
+
+        /* 可连接状态的连接点样式 */
+        .node-port.connectable {
+            animation: pulse 1.5s infinite;
+        }
+
+        /* 添加脉冲动画 */
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(82, 255, 168, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(82, 255, 168, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(82, 255, 168, 0);
+            }
+        }
+
+        /* 连接线创建时的动画 */
+        .edge-creating path {
+            stroke-dasharray: 5;
+            animation: createEdgeAnimation 0.5s ease forwards;
+        }
+
+        @keyframes createEdgeAnimation {
+            from {
+                stroke-dashoffset: 100;
+                opacity: 0;
+            }
+            to {
+                stroke-dashoffset: 0;
+                opacity: 1;
+            }
+        }
+
+        /* 连接线删除时的动画 */
+        .edge-removing path {
+            animation: removeEdgeAnimation 0.3s ease forwards;
+        }
+
+        @keyframes removeEdgeAnimation {
+            to {
+                stroke-dashoffset: -100;
+                opacity: 0;
+            }
+        }
+
+        /* 高亮效果 */
+        .edge.highlighted path {
+            stroke: rgba(82, 255, 168, 0.8);
+            stroke-width: 3;
+            filter: drop-shadow(0 0 3px rgba(82, 255, 168, 0.5));
+        }
+
+        /* 连线创建时的临时线条样式 */
+        .edge-creating {
+            pointer-events: none;
+            position: absolute;
+            z-index: 1000;
+        }
+
+        /* 连线状态样式 */
+        .flow-node.connecting {
+            box-shadow: 0 0 0 2px rgba(82, 255, 168, 0.5);
+        }
+
+        /* 无效连接提示 */
+        .flow-node.invalid-target {
+            box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.5);
+        }
+
+        /* 边缘上下文菜单 */
+        .edge-context-menu {
+            position: fixed;
+            background: #2D2D2D;
+            border-radius: 4px;
+            padding: 4px 0;
+            min-width: 120px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+
+        .edge-context-menu .menu-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            color: #fff;
+            font-size: 13px;
+        }
+
+        .edge-context-menu .menu-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .edge-context-menu .menu-item.delete {
+            color: #ff4d4d;
+        }
+
+        /* 连线创建动画 */
+        .edge-creating path {
+            stroke-dasharray: 5;
+            animation: createEdgeAnimation 0.5s ease infinite;
+        }
+
+        /* 连线删除动画 */
+        .edge-removing path {
+            animation: removeEdgeAnimation 0.3s ease forwards;
+        }
+
+        /* 虚拟连接线样式 */
+        .edge.virtual-edge path {
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 1.5;
+            stroke-dasharray: 4;
+            pointer-events: none; /* 确保虚拟线不会影响交互 */
+        }
+
+        /* 正在创建的连接线样式 */
+        .edge.edge-creating path {
+            stroke: rgba(82, 255, 168, 0.3);
+            stroke-width: 2;
+            stroke-dasharray: 4;
+            animation: flowAnimation 30s linear infinite;
+        }
+
+        /* 已连接的节点样式 */
+        .flow-node.connected .node-port {
+            background: rgba(82, 255, 168, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content" id="flow-canvas">
+        <!-- 修改左侧安装列表为输入框 -->
+        <div class="input-container">
+            <input type="text" 
+                   class="resource-input" 
+                   placeholder="输入资源链接（图片/视频）并按回车"
+                   id="resourceInput">
+        </div>
+
+        <!-- 底部工具栏 -->
+        <div class="toolbar" id="apiList">
+            <!-- 这里的内容将由 JavaScript 动态生成 -->
+        </div>
+    </div>
+
+    <!-- 右键菜单 -->
+    <div class="context-menu" style="display: none;">
+        <div class="menu-item">
+            <div class="menu-icon"></div>
+            Example data
+            <span class="shortcut">⌘D</span>
+        </div>
+        <div class="menu-item">
+            <div class="menu-icon"></div>
+            Copy link
+            <span class="shortcut">⌘C</span>
+        </div>
+        <div class="menu-item">
+            <div class="menu-icon"></div>
+            Create new branch
+            <span class="shortcut">⌘B</span>
+        </div>
+        <div class="menu-item">
+            <div class="menu-icon"></div>
+            Custom code
+            <span class="shortcut">⌘K</span>
+        </div>
+    </div>
+
+    <!-- 修改脚本路径 -->
+    <script type="module" src="src/index.js"></script>
+
+    <!-- 在 body 标签结束前添加模态框 -->
+    <div class="modal" id="imageModal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <img id="modalImage" src="" alt="Large preview">
+        </div>
+    </div>
+</body>
+</html>
