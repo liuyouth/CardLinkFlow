@@ -1,4 +1,5 @@
 import { FlowChart } from './core/FlowChart.js';
+import { DragHandler } from './drag-handler.js';
 
 /**
  * 将 FlowChart 类导出到全局作用域
@@ -16,13 +17,19 @@ window.showModal = (imageUrl) => {
     }
 };
 
-// 初始化流程图
-window.addEventListener('load', () => {
-    const canvas = document.getElementById('flow-canvas');
-    const flowChart = new FlowChart(canvas);
+// 等待 DOM 加载完成
+document.addEventListener('DOMContentLoaded', () => {
+    // 获取画布容器
+    const container = document.getElementById('flow-canvas');
+    
+    // 初始化拖拽处理器
+    new DragHandler(container);
+    
+    // 初始化流程图
+    const flowChart = new FlowChart(container);
     
     // 设置右键菜单
-    canvas.addEventListener('contextmenu', (e) => {
+    container.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         const menu = document.querySelector('.context-menu');
         menu.style.display = 'block';

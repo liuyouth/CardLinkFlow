@@ -55,8 +55,7 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             cursor: grab;
             user-select: none;
-            transition: box-shadow 0.2s ease;
-            transition: all 300ms ease;  /* 添加全局过渡效果 */
+            transition: all 300ms ease;
         }
 
         .flow-node:hover {
@@ -71,13 +70,25 @@
         .flow-node.dragging {
             opacity: 0.9;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            transition: none;  /* 拖拽时禁用过渡效果 */
+            transform: scale(1.02);
+            transition: none;
+            z-index: 1000;
+        }
+
+        .flow-node.droppable {
+            box-shadow: 0 0 0 2px rgba(82, 255, 168, 0.5);
+            transform: scale(1.05);
+        }
+
+        .flow-node.invalid-drop {
+            box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.5);
         }
 
         .node-content {
             display: flex;
             align-items: center;
             gap: 8px;
+            pointer-events: none;
         }
 
         .node-icon {
@@ -419,7 +430,7 @@
             }
         }
 
-        /* 节点连接点样式 */
+        /* 节点连接点基础样式 */
         .node-port {
             position: absolute;
             width: 8px;
@@ -431,7 +442,7 @@
             z-index: 100;  /* 确保连接点在最上层 */
         }
 
-        /* 添加连接点的感应区域 */
+        /* 连接点的感应区域 - 用于更容易的鼠标交互 */
         .node-port::before {
             content: '';
             position: absolute;
@@ -445,7 +456,7 @@
             z-index: -1;
         }
 
-        /* 鼠标靠近时的效果 */
+        /* 连接点悬停效果 */
         .node-port:hover {
             width: 12px;
             height: 12px;
@@ -454,7 +465,7 @@
             box-shadow: 0 0 10px rgba(82, 255, 168, 0.5);
         }
 
-        /* 输入输出端口位置调整 */
+        /* 输入输出端口的位置定位 */
         .node-port.input {
             left: -6px;
             top: 50%;
@@ -467,17 +478,17 @@
             transform: translateY(-50%);
         }
 
-        /* 连线状态下的连接点样式 */
+        /* 正在连线状态下的连接点样式 */
         .connecting .node-port {
             background: rgba(82, 255, 168, 0.8);
         }
 
-        /* 可连接状态的连接点样式 */
+        /* 可连接状态的连接点样式 - 添加脉冲动画 */
         .node-port.connectable {
             animation: pulse 1.5s infinite;
         }
 
-        /* 添加脉冲动画 */
+        /* 连接点脉冲动画定义 */
         @keyframes pulse {
             0% {
                 box-shadow: 0 0 0 0 rgba(82, 255, 168, 0.4);
@@ -490,12 +501,13 @@
             }
         }
 
-        /* 连接线创建时的动画 */
+        /* 连接线创建动画 */
         .edge-creating path {
             stroke-dasharray: 5;
             animation: createEdgeAnimation 0.5s ease forwards;
         }
 
+        /* 连接线创建动画定义 */
         @keyframes createEdgeAnimation {
             from {
                 stroke-dashoffset: 100;
@@ -507,11 +519,12 @@
             }
         }
 
-        /* 连接线删除时的动画 */
+        /* 连接线删除动画 */
         .edge-removing path {
             animation: removeEdgeAnimation 0.3s ease forwards;
         }
 
+        /* 连接线删除动画定义 */
         @keyframes removeEdgeAnimation {
             to {
                 stroke-dashoffset: -100;
@@ -519,28 +532,41 @@
             }
         }
 
-        /* 高亮效果 */
+        /* 高亮连接线样式 */
         .edge.highlighted path {
             stroke: rgba(82, 255, 168, 0.8);
             stroke-width: 3;
             filter: drop-shadow(0 0 3px rgba(82, 255, 168, 0.5));
         }
 
-        /* 连线创建时的临时线条样式 */
+        /* 临时连接线样式 */
         .edge-creating {
             pointer-events: none;
             position: absolute;
             z-index: 1000;
         }
 
-        /* 连线状态样式 */
+        /* 连线状态下节点样式 */
         .flow-node.connecting {
             box-shadow: 0 0 0 2px rgba(82, 255, 168, 0.5);
         }
 
-        /* 无效连接提示 */
+        /* 无效连接目标节点样式 */
         .flow-node.invalid-target {
             box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.5);
+        }
+
+        /* 虚拟连接线样式 */
+        .edge.virtual-edge path {
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 1.5;
+            stroke-dasharray: 4;
+            pointer-events: none;
+        }
+
+        /* 已连接节点的连接点样式 */
+        .flow-node.connected .node-port {
+            background: rgba(82, 255, 168, 0.3);
         }
 
         /* 边缘上下文菜单 */
@@ -599,6 +625,14 @@
         /* 已连接的节点样式 */
         .flow-node.connected .node-port {
             background: rgba(82, 255, 168, 0.3);
+        }
+
+        /* 拖动时的占位符样式 */
+        .drag-placeholder {
+            border: 2px dashed rgba(82, 255, 168, 0.3);
+            background: rgba(82, 255, 168, 0.1);
+            border-radius: 6px;
+            pointer-events: none;
         }
     </style>
 </head>

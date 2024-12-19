@@ -282,23 +282,27 @@ export class EdgeManager {
      * @param {Object} edgeData - 连接线数据
      */
     renderEdge(edgeData) {
-        try {
-            const sourceNode = this.flowChart.nodeManager.nodes.get(edgeData.source);
-            const targetNode = this.flowChart.nodeManager.nodes.get(edgeData.target);
-            
-            if (!sourceNode || !targetNode) {
-                console.warn(`Invalid edge: missing ${!sourceNode ? 'source' : 'target'} node`);
-                return;
-            }
+        const sourceNode = this.flowChart.container.querySelector(`[data-id="${edgeData.source}"]`);
+        const targetNode = this.flowChart.container.querySelector(`[data-id="${edgeData.target}"]`);
+        
+        if (!sourceNode || !targetNode) return;
 
-            const svg = this.createEdgeSVG(edgeData);
-            const path = this.createEdgePath(sourceNode.position, targetNode.position, edgeData.type);
-            
-            svg.appendChild(path);
-            this.flowChart.container.appendChild(svg);
-        } catch (error) {
-            console.error('Error rendering edge:', error);
-        }
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.classList.add('edge');
+        svg.dataset.edgeId = edgeData.id;
+        svg.dataset.type = edgeData.type;
+        svg.style.position = 'absolute';
+        svg.style.width = '100%';
+        svg.style.height = '100%';
+        svg.style.pointerEvents = 'none';
+        svg.style.zIndex = '1';
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const d = this.calculatePathFromNodes(sourceNode, targetNode);
+        path.setAttribute('d', d);
+
+        svg.appendChild(path);
+        this.flowChart.container.appendChild(svg);
     }
 
     /**
@@ -533,6 +537,65 @@ export class EdgeManager {
                 edge.remove();
             }
         });
+    }
+
+    /**
+     * 更新与指定节点相关的所有边
+     * @param {string} nodeId - 需要更新边的节点ID
+     */
+    updateEdgesForNode(nodeId) {
+        // 更新所有相关的边
+        const edges = this.flowChart.container.querySelectorAll('.edge');
+        edges.forEach(edge => {
+            const edgeData = this.edges.get(edge.dataset.edgeId);
+            if (!edgeData) return;
+
+            if (edgeData.source === nodeId || edgeData.target === nodeId) {
+                const sourceNode = this.flowChart.container.querySelector(`[data-id="${edgeData.source}"]`);
+                const targetNode = this.flowChart.container.querySelector(`[data-id="${edgeData.target}"]`);
+                
+                if (sourceNode && targetNode) {
+                    const path = edge.querySelector('path');
+                    if (path) {
+                        const d = this.calculatePathFromNodes(sourceNode, targetNode);
+                        path.setAttribute('d', d);
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * 根据两个节点计算路径
+     * @param {HTMLElement} sourceNode 
+     * @param {HTMLElement} targetNode 
+     * @returns {string} SVG路径数据
+     */
+    calculatePathFromNodes(sourceNode, targetNode) {
+        const sourcePort = sourceNode.querySelector('.node-port.output');
+        const targetPort = targetNode.querySelector('.node-port.input');
+        
+        if (!sourcePort || !targetPort) return '';
+
+        // 获取连接点的绝对位置
+        const sourceRect = sourcePort.getBoundingClientRect();
+        const targetRect = targetPort.getBoundingClientRect();
+        const containerRect = this.flowChart.container.getBoundingClientRect();
+
+        // 计算相对于容器的坐标
+        const sourceX = sourceRect.left - containerRect.left + (sourceRect.width / 2);
+        const sourceY = sourceRect.top - containerRect.top + (sourceRect.height / 2);
+        const targetX = targetRect.left - containerRect.left + (targetRect.width / 2);
+        const targetY = targetRect.top - containerRect.top + (targetRect.height / 2);
+
+        // 计算控制点偏移量
+        const controlPointOffset = Math.abs(targetX - sourceX) * 0.5;
+
+        // 返回贝塞尔曲线路径
+        return `M ${sourceX} ${sourceY} 
+                C ${sourceX + controlPointOffset} ${sourceY},
+                  ${targetX - controlPointOffset} ${targetY},
+                  ${targetX} ${targetY}`;
     }
 
     // ... 其他边缘相关方法

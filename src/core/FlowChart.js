@@ -41,6 +41,11 @@ export class FlowChart {
         this.initResourceInput();
         this.initModal();
         this.initApiList();
+        
+        // 添加节点移动事件监听
+        this.container.addEventListener('node-moved', (e) => {
+            this.handleNodeMove(e.detail);
+        });
     }
 
     /**
@@ -158,6 +163,15 @@ export class FlowChart {
             button.addEventListener('click', () => this.nodeManager.addApiNode(api));
             apiList.appendChild(button);
         });
+    }
+
+    // 添加处理节点移动的方法
+    handleNodeMove(detail) {
+        const { node } = detail;
+        const nodeId = node.getAttribute('data-id');
+        
+        // 使用 EdgeManager 来更新边
+        this.edgeManager.updateEdgesForNode(nodeId);
     }
 
     // ... 其他核心方法
