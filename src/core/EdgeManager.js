@@ -124,21 +124,8 @@ export class EdgeManager {
 
     // 验证连线规则
     validateConnection(sourceNode, targetNode) {
-        // 不能连接自己
-        if (sourceNode === targetNode) return false;
-
-        // 检查节点类型兼容性
-        const sourceType = sourceNode.dataset.type;
-        const targetType = targetNode.dataset.type;
-        
-        // 定义允许的连接规则
-        const allowedConnections = {
-            'resource': ['ai-model'],
-            'ai-model': ['result'],
-            'result': []
-        };
-
-        return allowedConnections[sourceType]?.includes(targetType) || false;
+        // 只验证不能连接自己
+        return sourceNode !== targetNode;
     }
 
     // 验证源节点
@@ -217,29 +204,64 @@ export class EdgeManager {
     }
 
     createTempEdge() {
-        this.tempEdge = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        this.tempEdge.classList.add('edge', 'virtual-edge', 'edge-creating');
-        this.tempEdge.dataset.sourceId = this.sourceNode.dataset.id;
-        this.tempEdge.style.position = 'absolute';
-        this.tempEdge.style.width = '100%';
-        this.tempEdge.style.height = '100%';
-        this.flowChart.container.appendChild(this.tempEdge);
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.classList.add('edge', 'edge-creating');
+        svg.style.position = 'absolute';
+        svg.style.width = '100%';
+        svg.style.height = '100%';
+        svg.style.pointerEvents = 'none';
+        svg.style.zIndex = '1000';
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('stroke', 'rgba(82, 255, 168, 0.5)');
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('fill', 'none');
+        svg.appendChild(path);
+        
+        this.flowChart.container.appendChild(svg);
+        return svg;
     }
 
-    updateTempEdge(e) {
-        if (!this.tempEdge || !this.sourceNode) return;
+    updateTempEdge(startPort, endPoint) {
+        const tempEdge = this.flowChart.connectionState.tempEdge;
+        if (!tempEdge) return;
 
-        const sourcePort = this.sourceNode.querySelector('.node-port.output');
-        const sourceRect = sourcePort.getBoundingClientRect();
-        const containerRect = this.flowChart.container.getBoundingClientRect();
+        const path = tempEdge.querySelector('path');
+        if (!path) return;
 
-        const startX = sourceRect.left - containerRect.left + sourceRect.width/2;
-        const startY = sourceRect.top - containerRect.top + sourceRect.height/2;
-        const endX = e.clientX - containerRect.left;
-        const endY = e.clientY - containerRect.top;
+        const start = this.getPortPosition(startPort);
+        const d = this.createCurvedPath(start, endPoint);
+        path.setAttribute('d', d);
+    }
 
-        const path = this.createPath(startX, startY, endX, endY);
-        this.tempEdge.innerHTML = `<path d="${path}" />`;
+    createConnection(startPort, endPort) {
+        const startNode = startPort.closest('.flow-node');
+        const endNode = endPort.closest('.flow-node');
+        
+        if (!startNode || !endNode) return;
+
+        const edgeId = `edge-${Date.now()}`;
+        const edgeData = {
+            id: edgeId,
+            source: startNode.dataset.id,
+            target: endNode.dataset.id,
+            sourcePort: startPort,
+            targetPort: endPort,
+            type: 'default'  // 可以根据需要设置不同的类型
+        };
+
+        this.addEdge(edgeData);
+    }
+
+    createCurvedPath(start, end) {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const controlPoint = Math.abs(dx) * 0.5;
+
+        return `M ${start.x},${start.y} 
+                C ${start.x + controlPoint},${start.y} 
+                  ${end.x - controlPoint},${end.y} 
+                  ${end.x},${end.y}`;
     }
 
     cleanupTempEdge() {
@@ -261,18 +283,6 @@ export class EdgeManager {
      * @param {Object} edgeData - 连接线数据
      */
     addEdge(edgeData) {
-        // 检查并移除已存在的虚拟连接
-        const virtualEdgeKey = `${edgeData.source}-${edgeData.target}`;
-        const existingVirtualEdge = this.virtualEdges.get(virtualEdgeKey);
-        if (existingVirtualEdge) {
-            const virtualEdgeElement = this.flowChart.container.querySelector(`[data-edge-id="${existingVirtualEdge.id}"]`);
-            if (virtualEdgeElement) {
-                virtualEdgeElement.remove();
-            }
-            this.virtualEdges.delete(virtualEdgeKey);
-        }
-
-        // 添加实际连接
         this.edges.set(edgeData.id, edgeData);
         this.renderEdge(edgeData);
     }
@@ -282,15 +292,9 @@ export class EdgeManager {
      * @param {Object} edgeData - 连接线数据
      */
     renderEdge(edgeData) {
-        const sourceNode = this.flowChart.container.querySelector(`[data-id="${edgeData.source}"]`);
-        const targetNode = this.flowChart.container.querySelector(`[data-id="${edgeData.target}"]`);
-        
-        if (!sourceNode || !targetNode) return;
-
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.classList.add('edge');
         svg.dataset.edgeId = edgeData.id;
-        svg.dataset.type = edgeData.type;
         svg.style.position = 'absolute';
         svg.style.width = '100%';
         svg.style.height = '100%';
@@ -298,7 +302,14 @@ export class EdgeManager {
         svg.style.zIndex = '1';
 
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        const d = this.calculatePathFromNodes(sourceNode, targetNode);
+        path.setAttribute('stroke', 'rgba(255, 255, 255, 0.3)');
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('fill', 'none');
+
+        // 获取连接点位置并创建路径
+        const start = this.getPortPosition(edgeData.sourcePort);
+        const end = this.getPortPosition(edgeData.targetPort);
+        const d = this.createCurvedPath(start, end);
         path.setAttribute('d', d);
 
         svg.appendChild(path);
@@ -424,11 +435,8 @@ export class EdgeManager {
     removeEdge(edgeId) {
         const edge = this.flowChart.container.querySelector(`[data-edge-id="${edgeId}"]`);
         if (edge) {
-            edge.classList.add('edge-removing');
-            setTimeout(() => {
-                edge.remove();
-                this.edges.delete(edgeId);
-            }, 300);
+            edge.remove();
+            this.edges.delete(edgeId);
         }
     }
 
@@ -544,20 +552,16 @@ export class EdgeManager {
      * @param {string} nodeId - 需要更新边的节点ID
      */
     updateEdgesForNode(nodeId) {
-        // 更新所有相关的边
-        const edges = this.flowChart.container.querySelectorAll('.edge');
-        edges.forEach(edge => {
-            const edgeData = this.edges.get(edge.dataset.edgeId);
-            if (!edgeData) return;
-
-            if (edgeData.source === nodeId || edgeData.target === nodeId) {
-                const sourceNode = this.flowChart.container.querySelector(`[data-id="${edgeData.source}"]`);
-                const targetNode = this.flowChart.container.querySelector(`[data-id="${edgeData.target}"]`);
-                
-                if (sourceNode && targetNode) {
-                    const path = edge.querySelector('path');
+        // 更新与该节点相关的所有边
+        this.edges.forEach((edge) => {
+            if (edge.source === nodeId || edge.target === nodeId) {
+                const svg = this.flowChart.container.querySelector(`[data-edge-id="${edge.id}"]`);
+                if (svg) {
+                    const path = svg.querySelector('path');
                     if (path) {
-                        const d = this.calculatePathFromNodes(sourceNode, targetNode);
+                        const start = this.getPortPosition(edge.sourcePort);
+                        const end = this.getPortPosition(edge.targetPort);
+                        const d = this.createCurvedPath(start, end);
                         path.setAttribute('d', d);
                     }
                 }
@@ -596,6 +600,64 @@ export class EdgeManager {
                 C ${sourceX + controlPointOffset} ${sourceY},
                   ${targetX - controlPointOffset} ${targetY},
                   ${targetX} ${targetY}`;
+    }
+
+    createEdgePath(startPort, endPort) {
+        const start = this.getPortPosition(startPort);
+        const end = this.getPortPosition(endPort);
+        
+        // 根据连接点的方向计算控制点
+        const startDirection = this.getPortDirection(startPort);
+        const endDirection = this.getPortDirection(endPort);
+        
+        const [c1, c2] = this.calculateControlPoints(start, end, startDirection, endDirection);
+        
+        return `M ${start.x} ${start.y} 
+                C ${c1.x} ${c1.y},
+                  ${c2.x} ${c2.y},
+                  ${end.x} ${end.y}`;
+    }
+
+    getPortDirection(port) {
+        if (port.classList.contains('top')) return 'top';
+        if (port.classList.contains('bottom')) return 'bottom';
+        if (port.classList.contains('left')) return 'left';
+        if (port.classList.contains('right')) return 'right';
+    }
+
+    calculateControlPoints(start, end, startDir, endDir) {
+        const distance = Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
+        const offset = distance * 0.5;
+        
+        const c1 = { x: start.x, y: start.y };
+        const c2 = { x: end.x, y: end.y };
+
+        switch (startDir) {
+            case 'top': c1.y -= offset; break;
+            case 'bottom': c1.y += offset; break;
+            case 'left': c1.x -= offset; break;
+            case 'right': c1.x += offset; break;
+        }
+
+        switch (endDir) {
+            case 'top': c2.y -= offset; break;
+            case 'bottom': c2.y += offset; break;
+            case 'left': c2.x -= offset; break;
+            case 'right': c2.x += offset; break;
+        }
+
+        return [c1, c2];
+    }
+
+    // 获取连接点位置
+    getPortPosition(port) {
+        const rect = port.getBoundingClientRect();
+        const containerRect = this.flowChart.container.getBoundingClientRect();
+        
+        return {
+            x: rect.left - containerRect.left + rect.width / 2,
+            y: rect.top - containerRect.top + rect.height / 2
+        };
     }
 
     // ... 其他边缘相关方法

@@ -207,33 +207,81 @@ export class NodeManager {
     createNodeElement(nodeData) {
         const node = document.createElement('div');
         node.className = 'flow-node';
-        node.dataset.id = nodeData.id;
-        node.dataset.type = nodeData.type;
+        node.setAttribute('data-id', nodeData.id);
+        node.setAttribute('data-type', nodeData.type);
         
-        // 添加连接点
-        if (nodeData.type !== CONFIG.NODE_TYPES.RESULT) {
-            const outputPort = document.createElement('div');
-            outputPort.className = 'node-port output';
-            node.appendChild(outputPort);
-        }
+        // 创���节点内容
+        node.innerHTML = `
+            <div class="node-content">
+                <div class="node-icon">${nodeData.icon || ''}</div>
+                <div class="node-info">
+                    <div class="node-label">${nodeData.label}</div>
+                    <div class="node-type">${nodeData.type}</div>
+                </div>
+            </div>
+            
+            <!-- 添加四个方向的连接点,都可以作为输入输出 -->
+            <div class="node-port top" data-type="port"></div>
+            <div class="node-port bottom" data-type="port"></div>
+            <div class="node-port left" data-type="port"></div>
+            <div class="node-port right" data-type="port"></div>
+        `;
+
+        // 设置节点位置在屏幕中心
+        const centerX = window.innerWidth / 2 - 100; // 100是节点宽度的一半
+        const centerY = window.innerHeight / 2 - 50; // 50是节点高度的一半
         
-        if (nodeData.type !== CONFIG.NODE_TYPES.RESOURCE) {
-            const inputPort = document.createElement('div');
-            inputPort.className = 'node-port input';
-            node.appendChild(inputPort);
-        }
-        
-        // 节点内容
-        const content = document.createElement('div');
-        content.className = 'node-content';
-        content.innerHTML = this.getNodeContent(nodeData);
-        node.appendChild(content);
-        
-        // 设置位置
-        node.style.left = `${nodeData.position.x}px`;
-        node.style.top = `${nodeData.position.y}px`;
+        node.style.left = `${centerX}px`;
+        node.style.top = `${centerY}px`;
+
+        // 初始化连接点事件
+        this.initializePortEvents(node);
         
         return node;
+    }
+
+    initializePortEvents(node) {
+        const ports = node.querySelectorAll('.node-port');
+        
+        ports.forEach(port => {
+            // 开始连接
+            port.addEventListener('mousedown', (e) => {
+                e.stopPropagation(); // 防止与节点拖动冲突
+                this.flowChart.startConnection(port);
+            });
+
+            // 连接过程
+            port.addEventListener('mouseover', () => {
+                if (this.flowChart.connectionState.isConnecting) {
+                    const startNode = this.flowChart.connectionState.startNode;
+                    const endNode = port.closest('.flow-node');
+                    
+                    if (startNode !== endNode) {
+                        port.classList.add('connectable');
+                    }
+                }
+            });
+
+            port.addEventListener('mouseout', () => {
+                port.classList.remove('connectable');
+            });
+
+            // 结束连接
+            port.addEventListener('mouseup', () => {
+                if (this.flowChart.connectionState.isConnecting) {
+                    this.flowChart.finishConnection(port);
+                }
+            });
+        });
+    }
+
+    // 判断连接是否有效
+    isValidConnection(startPort, endPort) {
+        const startNode = startPort.closest('.flow-node');
+        const endNode = endPort.closest('.flow-node');
+        
+        // 只验证不能连接到自己
+        return startNode !== endNode;
     }
 
     /**
@@ -369,5 +417,5 @@ export class NodeManager {
         return node;
     }
 
-    // ... 其他辅助方法
+    // ... 其他辅助��法
 } 

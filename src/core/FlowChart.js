@@ -2,8 +2,9 @@ import { CONFIG } from '../config/constants.js';
 import { ICONS } from '../config/icons.js';
 import { NodeManager } from './NodeManager.js';
 import { EdgeManager } from './EdgeManager.js';
-import { DragManager } from './DragManager.js';
+import { DragHandler } from './DragHandler.js';
 import { LayoutManager } from './LayoutManager.js';
+import { PropertiesPanel } from './PropertiesPanel.js';
 
 /**
  * 流程图主类
@@ -20,31 +21,41 @@ export class FlowChart {
             throw new Error('Container element is required');
         }
 
-        /** @type {HTMLElement} 容器元素 */
         this.container = container;
         
-        /** @type {NodeManager} 节点管理器 */
+        // 添加连线状态
+        this.connectionState = {
+            isConnecting: false,
+            startPort: null,
+            startNode: null,
+            tempEdge: null
+        };
+
+        // 初始化各个管理器
         this.nodeManager = new NodeManager(this);
-        
-        /** @type {EdgeManager} 边缘管理器 */
         this.edgeManager = new EdgeManager(this);
-        
-        /** @type {DragManager} 拖拽管理器 */
-        this.dragManager = new DragManager(this);
-        
-        /** @type {LayoutManager} 布局管理器 */
+        this.dragHandler = new DragHandler(this);
         this.layoutManager = new LayoutManager(this);
         
-        // 初始化各个功能
+        // 初始化功能
         this.initCanvasAreas();
         this.initEventListeners();
         this.initResourceInput();
         this.initModal();
         this.initApiList();
         
-        // 添加节点移动事件监听
-        this.container.addEventListener('node-moved', (e) => {
-            this.handleNodeMove(e.detail);
+        this.propertiesPanel = new PropertiesPanel(this);
+        
+        // 添加节点和连接线的点击事件
+        this.container.addEventListener('click', (e) => {
+            const node = e.target.closest('.flow-node');
+            const edge = e.target.closest('.edge');
+            
+            if (node) {
+                this.propertiesPanel.show(node);
+            } else if (edge) {
+                this.propertiesPanel.show(edge);
+            }
         });
     }
 
@@ -98,6 +109,32 @@ export class FlowChart {
                 this.scale *= delta;
                 this.scale = Math.max(0.5, Math.min(2, this.scale));
                 this.updateScale();
+            }
+        });
+
+        // 添加连线相关的事件监听
+        this.container.addEventListener('mousedown', (e) => {
+            const port = e.target.closest('.node-port');
+            if (port) {
+                e.stopPropagation();
+                this.startConnection(port);
+            }
+        });
+
+        this.container.addEventListener('mousemove', (e) => {
+            if (this.connectionState.isConnecting) {
+                this.updateTempConnection(e);
+            }
+        });
+
+        this.container.addEventListener('mouseup', (e) => {
+            if (this.connectionState.isConnecting) {
+                const port = e.target.closest('.node-port');
+                if (port) {
+                    this.finishConnection(port);
+                } else {
+                    this.cancelConnection();
+                }
             }
         });
     }
@@ -172,6 +209,71 @@ export class FlowChart {
         
         // 使用 EdgeManager 来更新边
         this.edgeManager.updateEdgesForNode(nodeId);
+    }
+
+    startConnection(port) {
+        const node = port.closest('.flow-node');
+        if (!node) return;
+
+        this.connectionState = {
+            isConnecting: true,
+            startPort: port,
+            startNode: node,
+            tempEdge: this.edgeManager.createTempEdge()
+        };
+
+        port.classList.add('connecting');
+        node.classList.add('connecting');
+    }
+
+    updateTempConnection(e) {
+        if (!this.connectionState.tempEdge) return;
+
+        const containerRect = this.container.getBoundingClientRect();
+        const endX = e.clientX - containerRect.left;
+        const endY = e.clientY - containerRect.top;
+
+        this.edgeManager.updateTempEdge(
+            this.connectionState.startPort,
+            { x: endX, y: endY }
+        );
+    }
+
+    finishConnection(endPort) {
+        const endNode = endPort.closest('.flow-node');
+        if (!endNode || !this.connectionState.startNode) return;
+
+        if (this.edgeManager.validateConnection(this.connectionState.startNode, endNode)) {
+            this.edgeManager.createConnection(
+                this.connectionState.startPort,
+                endPort
+            );
+        }
+
+        this.cleanupConnection();
+    }
+
+    cancelConnection() {
+        this.cleanupConnection();
+    }
+
+    cleanupConnection() {
+        if (this.connectionState.startPort) {
+            this.connectionState.startPort.classList.remove('connecting');
+        }
+        if (this.connectionState.startNode) {
+            this.connectionState.startNode.classList.remove('connecting');
+        }
+        if (this.connectionState.tempEdge) {
+            this.connectionState.tempEdge.remove();
+        }
+
+        this.connectionState = {
+            isConnecting: false,
+            startPort: null,
+            startNode: null,
+            tempEdge: null
+        };
     }
 
     // ... 其他核心方法

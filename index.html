@@ -130,8 +130,7 @@
             stroke: rgba(255, 255, 255, 0.2);
             stroke-width: 2;
             fill: none;
-            stroke-dasharray: 8;
-            animation: flowAnimation 30s linear infinite;
+            transition: all 0.3s ease;
         }
 
         .edge[data-type="result"] path {
@@ -430,7 +429,7 @@
             }
         }
 
-        /* 节点连接点基础样式 */
+        /* 修改连接点基础样式 */
         .node-port {
             position: absolute;
             width: 8px;
@@ -439,21 +438,7 @@
             border-radius: 50%;
             transition: all 0.3s ease;
             cursor: pointer;
-            z-index: 100;  /* 确保连接点在最上层 */
-        }
-
-        /* 连接点的感应区域 - 用于更容易的鼠标交互 */
-        .node-port::before {
-            content: '';
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            background: transparent;
-            border-radius: 50%;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: -1;
+            z-index: 100;
         }
 
         /* 连接点悬停效果 */
@@ -465,40 +450,19 @@
             box-shadow: 0 0 10px rgba(82, 255, 168, 0.5);
         }
 
-        /* 输入输出端口的位置定位 */
-        .node-port.input {
-            left: -6px;
-            top: 50%;
-            transform: translateY(-50%);
-        }
-
-        .node-port.output {
-            right: -6px;
-            top: 50%;
-            transform: translateY(-50%);
-        }
-
-        /* 正在连线状态下的连接点样式 */
-        .connecting .node-port {
+        /* 连接状态样式 */
+        .node-port.connecting {
             background: rgba(82, 255, 168, 0.8);
         }
 
-        /* 可连接状态的连接点样式 - 添加脉冲动画 */
+        /* 可连接状态样式 */
         .node-port.connectable {
             animation: pulse 1.5s infinite;
         }
 
-        /* 连接点脉冲动画定义 */
-        @keyframes pulse {
-            0% {
-                box-shadow: 0 0 0 0 rgba(82, 255, 168, 0.4);
-            }
-            70% {
-                box-shadow: 0 0 0 10px rgba(82, 255, 168, 0);
-            }
-            100% {
-                box-shadow: 0 0 0 0 rgba(82, 255, 168, 0);
-            }
+        /* 已连接状态样式 */
+        .node-port.connected {
+            background: rgba(82, 255, 168, 0.5);
         }
 
         /* 连接线创建动画 */
@@ -616,9 +580,9 @@
 
         /* 正在创建的连接线样式 */
         .edge.edge-creating path {
-            stroke: rgba(82, 255, 168, 0.3);
+            stroke: rgba(82, 255, 168, 0.5);
             stroke-width: 2;
-            stroke-dasharray: 4;
+            stroke-dasharray: 5;
             animation: flowAnimation 30s linear infinite;
         }
 
@@ -633,6 +597,186 @@
             background: rgba(82, 255, 168, 0.1);
             border-radius: 6px;
             pointer-events: none;
+        }
+
+        /* 四个方向连接点的位置定位 */
+        .node-port.top {
+            top: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .node-port.bottom {
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .node-port.left {
+            left: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .node-port.right {
+            right: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        /* 连接点的标签提示 */
+        .node-port::after {
+            content: attr(data-type);
+            position: absolute;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+
+        .node-port:hover::after {
+            opacity: 1;
+        }
+
+        /* 为不同方向的连接点添加标签位置 */
+        .node-port.top::after {
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-bottom: 4px;
+        }
+
+        .node-port.bottom::after {
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 4px;
+        }
+
+        .node-port.left::after {
+            right: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+            margin-right: 4px;
+        }
+
+        .node-port.right::after {
+            left: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+            margin-left: 4px;
+        }
+
+        /* 属性面板样式 */
+        .properties-panel {
+            position: fixed;
+            right: 0;
+            top: 0;
+            width: 300px;
+            height: 100vh;
+            background: #2D2D2D;
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .properties-panel.show {
+            transform: translateX(0);
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px 8px;
+        }
+
+        .close-button:hover {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .panel-content {
+            padding: 16px;
+            overflow-y: auto;
+            height: calc(100% - 60px);
+        }
+
+        .property-section {
+            margin-bottom: 24px;
+        }
+
+        .property-section h3 {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 16px;
+        }
+
+        .property-item {
+            margin-bottom: 16px;
+        }
+
+        .property-item label {
+            display: block;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 8px;
+        }
+
+        .property-input {
+            width: 100%;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            color: #fff;
+            font-size: 13px;
+        }
+
+        .property-input:focus {
+            border-color: rgba(82, 255, 168, 0.5);
+            outline: none;
+        }
+
+        /* 为不同类型的输入添加特定样式 */
+        .property-input[type="range"] {
+            -webkit-appearance: none;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+
+        .property-input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: rgba(82, 255, 168, 0.8);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .property-input[type="color"] {
+            height: 32px;
+            padding: 2px;
         }
     </style>
 </head>
@@ -684,6 +828,57 @@
         <div class="modal-content">
             <span class="close-button">&times;</span>
             <img id="modalImage" src="" alt="Large preview">
+        </div>
+    </div>
+
+    <!-- 在 main-content 的结束标签前添加 -->
+    <div class="properties-panel" id="propertiesPanel">
+        <div class="panel-header">
+            <span class="panel-title">属性设置</span>
+            <button class="close-button">×</button>
+        </div>
+        <div class="panel-content">
+            <!-- 节点属性 -->
+            <div class="property-section node-properties" style="display: none;">
+                <h3>节点属性</h3>
+                <div class="property-item">
+                    <label>标签</label>
+                    <input type="text" id="nodeLabel" class="property-input">
+                </div>
+                <div class="property-item">
+                    <label>类型</label>
+                    <select id="nodeType" class="property-input">
+                        <option value="resource">资源</option>
+                        <option value="ai-model">AI模型</option>
+                        <option value="result">结果</option>
+                    </select>
+                </div>
+                <div class="property-item">
+                    <label>资源URL</label>
+                    <input type="text" id="nodeUrl" class="property-input">
+                </div>
+            </div>
+
+            <!-- 连接线属性 -->
+            <div class="property-section edge-properties" style="display: none;">
+                <h3>连接线属性</h3>
+                <div class="property-item">
+                    <label>类型</label>
+                    <select id="edgeType" class="property-input">
+                        <option value="default">默认</option>
+                        <option value="resource">资源</option>
+                        <option value="result">结果</option>
+                    </select>
+                </div>
+                <div class="property-item">
+                    <label>动画速度</label>
+                    <input type="range" id="edgeSpeed" min="1" max="50" class="property-input">
+                </div>
+                <div class="property-item">
+                    <label>线条颜色</label>
+                    <input type="color" id="edgeColor" class="property-input">
+                </div>
+            </div>
         </div>
     </div>
 </body>
