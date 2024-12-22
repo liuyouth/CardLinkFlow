@@ -191,15 +191,19 @@ export class EdgeManager {
     }
 
     // 确定边的类型
-    determineEdgeType(sourceNode, targetNode) {
-        const sourceType = sourceNode.dataset.type;
-        const targetType = targetNode.dataset.type;
+    determineEdgeType(sourceNode, endNode) {
+        const sourceType = sourceNode.getAttribute('data-type');
+        const targetType = endNode.getAttribute('data-type');
         
+        // 资源节点 -> AI模型节点: 资源连线
         if (sourceType === 'resource' && targetType === 'ai-model') {
             return 'resource';
-        } else if (sourceType === 'ai-model' && targetType === 'result') {
+        }
+        // AI模型节点 -> 结果节点: 结果连线
+        else if (sourceType === 'ai-model' && targetType === 'result') {
             return 'result';
         }
+        // 其他情况: 默认连线
         return 'default';
     }
 
@@ -240,17 +244,31 @@ export class EdgeManager {
         
         if (!startNode || !endNode) return;
 
-        const edgeId = `edge-${Date.now()}`;
-        const edgeData = {
-            id: edgeId,
-            source: startNode.dataset.id,
-            target: endNode.dataset.id,
+        const edge = {
+            id: `edge-${Date.now()}`,
+            source: startNode.getAttribute('data-id'),
+            target: endNode.getAttribute('data-id'),
+            type: this.determineEdgeType(startNode, endNode),
+            sourcePortType: this.getPortDirection(startPort),
+            targetPortType: this.getPortDirection(endPort),
             sourcePort: startPort,
-            targetPort: endPort,
-            type: 'default'  // 可以根据需要设置不同的类型
+            targetPort: endPort
         };
 
-        this.addEdge(edgeData);
+        // 创建 SVG 路径
+        const edgeElement = this.createEdgeElement(edge);
+        this.flowChart.container.appendChild(edgeElement);
+
+        // 添加到 flowChart 的 edges 数组中
+        this.flowChart.addEdge({...edge, element: edgeElement});
+
+        // 添加创建动画
+        edgeElement.classList.add('edge-creating');
+        setTimeout(() => {
+            edgeElement.classList.remove('edge-creating');
+        }, 500);
+
+        return edge;
     }
 
     createCurvedPath(start, end) {
@@ -552,17 +570,22 @@ export class EdgeManager {
      * @param {string} nodeId - 需要更新边的节点ID
      */
     updateEdgesForNode(nodeId) {
-        // 更新与该节点相关的所有边
-        this.edges.forEach((edge) => {
+        this.flowChart.edges.forEach(edge => {
             if (edge.source === nodeId || edge.target === nodeId) {
-                const svg = this.flowChart.container.querySelector(`[data-edge-id="${edge.id}"]`);
-                if (svg) {
-                    const path = svg.querySelector('path');
-                    if (path) {
-                        const start = this.getPortPosition(edge.sourcePort);
-                        const end = this.getPortPosition(edge.targetPort);
-                        const d = this.createCurvedPath(start, end);
-                        path.setAttribute('d', d);
+                const edgeElement = this.flowChart.container.querySelector(`[data-edge-id="${edge.id}"]`);
+                if (edgeElement) {
+                    const sourceNode = this.flowChart.container.querySelector(`.flow-node[data-id="${edge.source}"]`);
+                    const targetNode = this.flowChart.container.querySelector(`.flow-node[data-id="${edge.target}"]`);
+                    
+                    if (sourceNode && targetNode) {
+                        const sourcePort = sourceNode.querySelector(`.node-port.${edge.sourcePortType}`);
+                        const targetPort = targetNode.querySelector(`.node-port.${edge.targetPortType}`);
+                        
+                        if (sourcePort && targetPort) {
+                            const path = edgeElement.querySelector('path');
+                            const d = this.createEdgePath(sourcePort, targetPort);
+                            path.setAttribute('d', d);
+                        }
                     }
                 }
             }
@@ -606,16 +629,16 @@ export class EdgeManager {
         const start = this.getPortPosition(startPort);
         const end = this.getPortPosition(endPort);
         
-        // 根据连接点的方向计算控制点
-        const startDirection = this.getPortDirection(startPort);
-        const endDirection = this.getPortDirection(endPort);
+        const startDir = this.getPortDirection(startPort);
+        const endDir = this.getPortDirection(endPort);
         
-        const [c1, c2] = this.calculateControlPoints(start, end, startDirection, endDirection);
+        // 根据连接点的方向调整控制点
+        const [c1, c2] = this.calculateControlPoints(start, end, startDir, endDir);
         
-        return `M ${start.x} ${start.y} 
-                C ${c1.x} ${c1.y},
-                  ${c2.x} ${c2.y},
-                  ${end.x} ${end.y}`;
+        return `M ${start.x},${start.y} 
+                C ${c1.x},${c1.y} 
+                  ${c2.x},${c2.y} 
+                  ${end.x},${end.y}`;
     }
 
     getPortDirection(port) {
@@ -660,5 +683,144 @@ export class EdgeManager {
         };
     }
 
-    // ... 其他边缘相关方法
+    // 添加 createEdgeElement 方法
+    createEdgeElement(edge) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.classList.add('edge');
+        svg.setAttribute('data-edge-id', edge.id);
+        svg.setAttribute('data-source', edge.source);
+        svg.setAttribute('data-target', edge.target);
+        svg.setAttribute('data-type', edge.type);
+        
+        svg.style.position = 'absolute';
+        svg.style.width = '100%';
+        svg.style.height = '100%';
+        svg.style.pointerEvents = 'none';
+        svg.style.zIndex = '1';
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        
+        // 根据边的类型设置不同的样式
+        switch (edge.type) {
+            case 'resource':
+                // 资源连线：���色
+                path.setAttribute('stroke', 'rgba(255, 255, 255, 0.3)');
+                path.setAttribute('stroke-width', '2');
+                break;
+            case 'result':
+                // 结果连线：绿色
+                path.setAttribute('stroke', 'rgba(82, 255, 168, 0.3)');
+                path.setAttribute('stroke-width', '2.5');
+                break;
+            default:
+                // 默认连线：灰色
+                path.setAttribute('stroke', 'rgba(255, 255, 255, 0.3)');
+                path.setAttribute('stroke-width', '1.5');
+        }
+
+        path.setAttribute('fill', 'none');
+        path.style.pointerEvents = 'auto';
+        path.classList.add('edge-path');
+
+        // 获取源节点和目标节点
+        const sourceNode = this.flowChart.container.querySelector(`.flow-node[data-id="${edge.source}"]`);
+        const targetNode = this.flowChart.container.querySelector(`.flow-node[data-id="${edge.target}"]`);
+
+        if (sourceNode && targetNode) {
+            // 使用保存的连接点类型
+            const sourcePort = sourceNode.querySelector(`.node-port.${edge.sourcePortType}`);
+            const targetPort = targetNode.querySelector(`.node-port.${edge.targetPortType}`);
+
+            if (sourcePort && targetPort) {
+                const d = this.createEdgePath(sourcePort, targetPort);
+                path.setAttribute('d', d);
+            }
+        }
+
+        svg.appendChild(path);
+
+        // 添加右键菜单事件
+        path.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.showEdgeContextMenu(svg, e);
+        });
+
+        return svg;
+    }
+
+    // 显示边的上下文菜单
+    showEdgeContextMenu(edge, event) {
+        // 移除已存在的上下文菜单
+        const existingMenu = document.querySelector('.edge-context-menu');
+        if (existingMenu) {
+            existingMenu.remove();
+        }
+
+        const menu = document.createElement('div');
+        menu.className = 'edge-context-menu';
+        menu.innerHTML = `
+            <div class="menu-item delete">删除连线</div>
+        `;
+        
+        menu.style.left = `${event.pageX}px`;
+        menu.style.top = `${event.pageY}px`;
+        
+        // 添加删除功能
+        menu.querySelector('.delete').addEventListener('click', () => {
+            const edgeId = edge.getAttribute('data-edge-id');
+            this.deleteEdge(edgeId);
+            menu.remove();
+        });
+        
+        // 点击其他地方关闭菜单
+        const closeMenu = (e) => {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        
+        document.body.appendChild(menu);
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 0);
+    }
+
+    // 删除边的方法
+    deleteEdge(edgeId) {
+        const edge = this.flowChart.container.querySelector(`[data-edge-id="${edgeId}"]`);
+        if (edge) {
+            // 获取源节点和目标节点的ID
+            const sourceId = edge.getAttribute('data-source');
+            const targetId = edge.getAttribute('data-target');
+
+            // 添加删除动画
+            edge.classList.add('edge-removing');
+            
+            // 动画结束后移除元素
+            setTimeout(() => {
+                edge.remove();
+                // 从 flowChart 的 edges 数组中移除
+                this.flowChart.removeEdge(edgeId);
+
+                // 更新属性面板
+                // 如果当前选中的是源节点或目标节点，更新其属性面板
+                const selectedNode = this.flowChart.selectedNode;
+                if (selectedNode) {
+                    const selectedNodeId = selectedNode.getAttribute('data-id');
+                    if (selectedNodeId === sourceId || selectedNodeId === targetId) {
+                        const nodeData = {
+                            type: 'node',
+                            id: selectedNodeId,
+                            label: selectedNode.getAttribute('data-label') || '',
+                            nodeType: selectedNode.getAttribute('data-type') || 'resource',
+                            url: selectedNode.getAttribute('data-url') || ''
+                        };
+                        this.flowChart.propertiesPanel.show(nodeData);
+                    }
+                }
+            }, 300);
+        }
+    }
 } 

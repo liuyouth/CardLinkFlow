@@ -53,7 +53,7 @@
             padding: 12px;
             min-width: 180px;
             border: 1px solid rgba(255, 255, 255, 0.1);
-            cursor: grab;
+            cursor: move;
             user-select: none;
             transition: all 300ms ease;
         }
@@ -127,10 +127,15 @@
         }
 
         .edge path {
-            stroke: rgba(255, 255, 255, 0.2);
-            stroke-width: 2;
+            stroke: rgba(255, 255, 255, 0.3);
+            stroke-width: 1.5;
             fill: none;
             transition: all 0.3s ease;
+        }
+
+        .edge[data-type="resource"] path {
+            stroke: rgba(255, 255, 255, 0.3);
+            stroke-width: 2;
         }
 
         .edge[data-type="result"] path {
@@ -528,7 +533,7 @@
             pointer-events: none;
         }
 
-        /* 已连接节点的连接点样式 */
+        /* 已连接节点的接点样式 */
         .flow-node.connected .node-port {
             background: rgba(82, 255, 168, 0.3);
         }
@@ -575,7 +580,7 @@
             stroke: rgba(255, 255, 255, 0.1);
             stroke-width: 1.5;
             stroke-dasharray: 4;
-            pointer-events: none; /* 确保虚拟线不会影响交互 */
+            pointer-events: none; /* 确保虚线不会影响交互 */
         }
 
         /* 正在创建的连接线样式 */
@@ -778,6 +783,132 @@
             height: 32px;
             padding: 2px;
         }
+
+        .speed-value,
+        .width-value {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-left: 8px;
+        }
+
+        .property-input[readonly] {
+            background: rgba(255, 255, 255, 0.02);
+            cursor: not-allowed;
+        }
+
+        .property-item select.property-input {
+            cursor: pointer;
+        }
+
+        .property-item select.property-input option {
+            background: #2D2D2D;
+            color: #fff;
+        }
+
+        .node-connections {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            padding: 8px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .connection-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 8px;
+            margin-bottom: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .connection-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .connection-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .connection-label {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .delete-connection {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 16px;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            transition: all 0.2s ease;
+            display: none;
+        }
+
+        .connection-item:hover .delete-connection {
+            display: block;
+        }
+
+        .delete-connection:hover {
+            background: rgba(255, 82, 82, 0.1);
+            color: #ff4d4d;
+        }
+
+        /* 高亮连线样式 */
+        .edge.highlighted path {
+            stroke: rgba(255, 82, 82, 0.8) !important;
+            stroke-width: 3;
+            filter: drop-shadow(0 0 3px rgba(255, 82, 82, 0.5));
+        }
+
+        .node-connections:empty::after {
+            content: "无关联节点";
+            display: block;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 12px;
+            padding: 8px;
+        }
+
+        /* 选中状态的样式 */
+        .flow-node.selected {
+            box-shadow: 0 0 0 2px rgba(82, 255, 168, 0.8);
+            transform: scale(1.02);
+        }
+
+        .edge.selected path {
+            stroke: rgba(82, 255, 168, 0.8);
+            stroke-width: 3;
+            filter: drop-shadow(0 0 3px rgba(82, 255, 168, 0.5));
+        }
+
+        .edge {
+            pointer-events: none; /* SVG 容器不接收事件 */
+        }
+
+        .edge-path {
+            pointer-events: auto; /* 路径可以接收事件 */
+            cursor: pointer;
+        }
+
+        .edge.selected .edge-path {
+            stroke: rgba(82, 255, 168, 0.8);
+            stroke-width: 3;
+            filter: drop-shadow(0 0 3px rgba(82, 255, 168, 0.5));
+        }
+
+        .flow-node {
+            cursor: move; /* 显示移动光标 */
+        }
     </style>
 </head>
 <body>
@@ -842,6 +973,10 @@
             <div class="property-section node-properties" style="display: none;">
                 <h3>节点属性</h3>
                 <div class="property-item">
+                    <label>节点标识</label>
+                    <input type="text" id="nodeId" class="property-input" readonly>
+                </div>
+                <div class="property-item">
                     <label>标签</label>
                     <input type="text" id="nodeLabel" class="property-input">
                 </div>
@@ -857,22 +992,62 @@
                     <label>资源URL</label>
                     <input type="text" id="nodeUrl" class="property-input">
                 </div>
+                
+                <!-- 添加关联节点信息 -->
+                <div class="property-item">
+                    <label>输入节点</label>
+                    <div id="nodeInputs" class="node-connections">
+                        <!-- 这里将通过 JS 动态填充输入节点列表 -->
+                    </div>
+                </div>
+                <div class="property-item">
+                    <label>输出节点</label>
+                    <div id="nodeOutputs" class="node-connections">
+                        <!-- 这里将通过 JS 动态填充输出节点列表 -->
+                    </div>
+                </div>
             </div>
 
             <!-- 连接线属性 -->
             <div class="property-section edge-properties" style="display: none;">
                 <h3>连接线属性</h3>
                 <div class="property-item">
-                    <label>类型</label>
+                    <label>连线标识</label>
+                    <input type="text" id="edgeId" class="property-input" readonly>
+                </div>
+                <div class="property-item">
+                    <label>连线类型</label>
                     <select id="edgeType" class="property-input">
-                        <option value="default">默认</option>
-                        <option value="resource">资源</option>
-                        <option value="result">结果</option>
+                        <option value="default">默认连线</option>
+                        <option value="resource">资源连线</option>
+                        <option value="result">结果连线</option>
                     </select>
+                </div>
+                <div class="property-item">
+                    <label>起始节点</label>
+                    <input type="text" id="edgeSource" class="property-input" readonly>
+                </div>
+                <div class="property-item">
+                    <label>目标节点</label>
+                    <input type="text" id="edgeTarget" class="property-input" readonly>
                 </div>
                 <div class="property-item">
                     <label>动画速度</label>
                     <input type="range" id="edgeSpeed" min="1" max="50" class="property-input">
+                    <span class="speed-value">1x</span>
+                </div>
+                <div class="property-item">
+                    <label>线条样式</label>
+                    <select id="edgeStyle" class="property-input">
+                        <option value="solid">实线</option>
+                        <option value="dashed">虚线</option>
+                        <option value="dotted">点线</option>
+                    </select>
+                </div>
+                <div class="property-item">
+                    <label>线条宽度</label>
+                    <input type="range" id="edgeWidth" min="1" max="5" class="property-input">
+                    <span class="width-value">2px</span>
                 </div>
                 <div class="property-item">
                     <label>线条颜色</label>

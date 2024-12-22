@@ -23,6 +23,10 @@ export class FlowChart {
 
         this.container = container;
         
+        // 添加边和节点的存储
+        this.edges = [];
+        this.nodes = [];
+        
         // 添加连线状态
         this.connectionState = {
             isConnecting: false,
@@ -48,13 +52,42 @@ export class FlowChart {
         
         // 添加节点和连接线的点击事件
         this.container.addEventListener('click', (e) => {
+            const path = e.target.closest('.edge-path');
             const node = e.target.closest('.flow-node');
-            const edge = e.target.closest('.edge');
             
+            // 如果点击的是连接线
+            if (path) {
+                const edge = path.closest('.edge');
+                if (edge) {
+                    e.stopPropagation(); // 阻止事件冒泡
+                    this.handleEdgeClick(edge);
+                }
+                return;
+            }
+
+            // 如果点击的是节点
             if (node) {
-                this.propertiesPanel.show(node);
-            } else if (edge) {
-                this.propertiesPanel.show(edge);
+                e.stopPropagation(); // 阻止事件冒泡
+                this.handleNodeClick(node);
+                return;
+            }
+
+            // 如果点击空白处，取消所有选中状态
+            this.clearSelection();
+        });
+
+        // 添加选中状态的属性
+        this.selectedNode = null;
+        this.selectedEdge = null;
+
+        // 添加键盘事件
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (this.selectedEdge) {
+                    const edgeId = this.selectedEdge.getAttribute('data-edge-id');
+                    this.edgeManager.deleteEdge(edgeId);
+                    this.selectedEdge = null;
+                }
             }
         });
     }
@@ -274,6 +307,156 @@ export class FlowChart {
             startNode: null,
             tempEdge: null
         };
+    }
+
+    // 添加选中节点的方法
+    selectNode(node) {
+        // 如果之前有选中的节点，移除其选中状态
+        if (this.selectedNode) {
+            this.selectedNode.classList.remove('selected');
+        }
+        
+        // 清除选中的边
+        if (this.selectedEdge) {
+            this.selectedEdge.classList.remove('selected');
+            this.selectedEdge = null;
+        }
+
+        // 设置新的选中节点
+        this.selectedNode = node;
+        if (node) {
+            node.classList.add('selected');
+        }
+    }
+
+    // 添加选中边的方法
+    selectEdge(edge) {
+        // 如果之前有选中的边，移除其选中状态
+        if (this.selectedEdge) {
+            this.selectedEdge.classList.remove('selected');
+        }
+        
+        // 清除选中的节点
+        if (this.selectedNode) {
+            this.selectedNode.classList.remove('selected');
+            this.selectedNode = null;
+        }
+
+        // 设置新的选中边
+        this.selectedEdge = edge;
+        if (edge) {
+            edge.classList.add('selected');
+        }
+    }
+
+    // 修改 handleNodeClick 方法
+    handleNodeClick(node) {
+        // 如果正在连线，不处理点击事件
+        if (this.connectionState.isConnecting) return;
+
+        const nodeData = {
+            type: 'node',
+            id: node.getAttribute('data-id'),
+            label: node.getAttribute('data-label') || '',
+            nodeType: node.getAttribute('data-type') || 'resource',
+            url: node.getAttribute('data-url') || ''
+        };
+        
+        // 将节点添加到 nodes 数组中（如果不存在）
+        if (!this.nodes.find(n => n.id === nodeData.id)) {
+            this.nodes.push(nodeData);
+        }
+        
+        this.selectNode(node);
+        this.propertiesPanel.show(nodeData);
+    }
+
+    // 修改 handleEdgeClick 方法
+    handleEdgeClick(edge) {
+        // 如果正在连线，不处理点击事件
+        if (this.connectionState.isConnecting) return;
+
+        const edgeData = {
+            type: 'edge',
+            id: edge.getAttribute('data-edge-id'),
+            edgeType: edge.getAttribute('data-type') || 'default',
+            source: edge.getAttribute('data-source'),
+            target: edge.getAttribute('data-target')
+        };
+        
+        this.selectEdge(edge);
+        this.propertiesPanel.show(edgeData);
+    }
+
+    // 添加更新节点的方法
+    updateNode(nodeData) {
+        if (!this.selectedNode) return;
+        
+        // 更新节点的属性
+        this.selectedNode.setAttribute('data-label', nodeData.label);
+        this.selectedNode.setAttribute('data-type', nodeData.type);
+        this.selectedNode.setAttribute('data-url', nodeData.url);
+        
+        // 更新节点的显示
+        const labelElement = this.selectedNode.querySelector('.node-label');
+        if (labelElement) {
+            labelElement.textContent = nodeData.label;
+        }
+        
+        // 触发节点更新事件
+        this.container.dispatchEvent(new CustomEvent('nodeUpdated', { 
+            detail: { node: this.selectedNode }
+        }));
+    }
+
+    // 添加更新边的方法
+    updateEdge(edgeData) {
+        if (!this.selectedEdge) return;
+        
+        // 更新边的属性
+        this.selectedEdge.setAttribute('data-type', edgeData.type);
+        
+        // 更新边的样式
+        this.selectedEdge.className = `edge ${edgeData.type}`;
+        
+        // 触发边更新事件
+        this.container.dispatchEvent(new CustomEvent('edgeUpdated', { 
+            detail: { edge: this.selectedEdge }
+        }));
+    }
+
+    // 添加获取节点的方法
+    getNodeById(id) {
+        return this.nodes.find(node => node.id === id);
+    }
+
+    // 添加获取边的方法
+    getEdgeById(id) {
+        return this.edges.find(edge => edge.id === id);
+    }
+
+    // 在创建连接时添加到 edges 数组
+    addEdge(edge) {
+        this.edges.push(edge);
+    }
+
+    // 在删除连接时从 edges 数组中移除
+    removeEdge(edgeId) {
+        this.edges = this.edges.filter(edge => edge.id !== edgeId);
+    }
+
+    // 添加清除选中状态的方法
+    clearSelection() {
+        if (this.selectedNode) {
+            this.selectedNode.classList.remove('selected');
+            this.selectedNode = null;
+        }
+        if (this.selectedEdge) {
+            this.selectedEdge.classList.remove('selected');
+            this.selectedEdge = null;
+        }
+        // 隐藏属性面板
+        this.propertiesPanel.hide();
     }
 
     // ... 其他核心方法
