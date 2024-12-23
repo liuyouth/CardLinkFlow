@@ -16,7 +16,11 @@ export class NodeManager {
         
         /** @type {Map<string, Object>} 节点存储映射 */
         this.nodes = new Map();
-        this.isManualConnectionMode = true; // 添加手动连接模式标志
+        this.nodeCounter = {
+            resource: 0,
+            'ai-model': 0,
+            result: 0
+        };
     }
 
     /**
@@ -58,7 +62,7 @@ export class NodeManager {
     }
 
     /**
-     * 创建资源节点数据
+     * 创建资源节��数据
      * @param {string} url - 资源URL
      * @param {{x: number, y: number}} position - 节点位置
      * @returns {Object} 节点数据
@@ -210,7 +214,7 @@ export class NodeManager {
         node.setAttribute('data-id', nodeData.id);
         node.setAttribute('data-type', nodeData.type);
         
-        // 创���节点内容
+        // 创建节点内容
         node.innerHTML = `
             <div class="node-content">
                 <div class="node-icon">${nodeData.icon || ''}</div>
@@ -280,7 +284,7 @@ export class NodeManager {
         const startNode = startPort.closest('.flow-node');
         const endNode = endPort.closest('.flow-node');
         
-        // 只验证不能连接到自己
+        // 只验证不能连接到���己
         return startNode !== endNode;
     }
 
@@ -398,24 +402,66 @@ export class NodeManager {
             );
     }
 
-    createNode(type, position) {
+    createNode(type, data = {}) {
+        const id = `${type}-${Date.now()}`;
+        const position = this.calculateNodePosition(type);
+        
         const node = document.createElement('div');
         node.className = 'flow-node';
+        node.setAttribute('data-id', id);
         node.setAttribute('data-type', type);
         
-        // 添加输入输出连接点
-        const inputPort = document.createElement('div');
-        inputPort.className = 'node-port input';
-        node.appendChild(inputPort);
+        // 设置节点位置
+        node.style.position = 'absolute';
+        node.style.left = `${position.x}px`;
+        node.style.top = `${position.y}px`;
         
-        const outputPort = document.createElement('div');
-        outputPort.className = 'node-port output';
-        node.appendChild(outputPort);
-        
-        // 其他节点内容...
-        
+        // ... 其他节点创建代码 ...
+
         return node;
     }
 
-    // ... 其他辅助��法
+    calculateNodePosition(type) {
+        const spacing = 50; // 节点之间的间距
+        let x, y;
+
+        switch (type) {
+            case 'resource':
+                // 资源节点在左侧垂直排列
+                x = CONFIG.AREAS.LEFT_MARGIN;
+                y = CONFIG.AREAS.TOP_MARGIN + (this.nodeCounter.resource * (CONFIG.NODE_HEIGHT + spacing));
+                this.nodeCounter.resource++;
+                break;
+
+            case 'ai-model':
+                // AI模型节点在中间垂直排列
+                x = this.flowChart.centerX - CONFIG.NODE_WIDTH/2;
+                y = CONFIG.AREAS.TOP_MARGIN + (this.nodeCounter['ai-model'] * (CONFIG.NODE_HEIGHT + spacing));
+                this.nodeCounter['ai-model']++;
+                break;
+
+            case 'result':
+                // 结果节点在右侧垂直排列
+                x = this.flowChart.centerX + CONFIG.AREAS.SPACING;
+                y = CONFIG.AREAS.TOP_MARGIN + (this.nodeCounter.result * (CONFIG.NODE_HEIGHT + spacing));
+                this.nodeCounter.result++;
+                break;
+
+            default:
+                x = 0;
+                y = 0;
+        }
+
+        return { x, y };
+    }
+
+    getAreaNodeCount(type) {
+        let count = 0;
+        this.flowChart.container.querySelectorAll(`.flow-node[data-type="${type}"]`).forEach(() => {
+            count++;
+        });
+        return count;
+    }
+
+    // ... 其他辅助方法
 } 

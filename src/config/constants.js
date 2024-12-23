@@ -12,11 +12,13 @@ export const CONFIG = {
     /** 布局相关的区域配置 */
     AREAS: {
         /** 左侧边距 */
-        LEFT_MARGIN: 100,
+        LEFT_MARGIN: 50,
+        /** 顶部边距 */
+        TOP_MARGIN: 50,
         /** 模型节点宽度 */
-        MODEL_WIDTH: 200,
+        MODEL_WIDTH: 300,
         /** 区域之间的水平间距 */
-        SPACING: 300
+        SPACING: 400
     },
     
     /** 节点类型枚举 */
@@ -27,5 +29,9 @@ export const CONFIG = {
         AI_MODEL: 'ai-model',
         /** 结果节点类型 */
         RESULT: 'result'
-    }
+    },
+    
+    /** 节点尺寸 */
+    NODE_WIDTH: 200,
+    NODE_HEIGHT: 80
 }; 
