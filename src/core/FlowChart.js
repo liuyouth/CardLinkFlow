@@ -90,6 +90,9 @@ export class FlowChart {
                 }
             }
         });
+
+        // 添加导出导入按钮到工具栏
+        this.addExportImportButtons();
     }
 
     /**
@@ -457,6 +460,162 @@ export class FlowChart {
         }
         // 隐藏属性面板
         this.propertiesPanel.hide();
+    }
+
+    // 添加导出导入按钮
+    addExportImportButtons() {
+        const apiList = document.getElementById('apiList');
+        if (!apiList) return;
+
+        // 添加导出按钮
+        const exportButton = document.createElement('button');
+        exportButton.className = 'api-button';
+        exportButton.innerHTML = `
+            <div class="api-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                    <path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                </svg>
+            </div>
+            <span>导出配置</span>
+        `;
+        exportButton.addEventListener('click', () => this.exportConfig());
+
+        // 添加导入按钮和文件输入
+        const importButton = document.createElement('button');
+        importButton.className = 'api-button';
+        importButton.innerHTML = `
+            <div class="api-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                    <path fill="currentColor" d="M5 20h14v-2H5v2zm0-10h4v6h6v-6h4l-7-7-7 7z"/>
+                </svg>
+            </div>
+            <span>导入配置</span>
+        `;
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.json';
+        fileInput.style.display = 'none';
+        fileInput.addEventListener('change', (e) => this.importConfig(e.target.files[0]));
+
+        importButton.addEventListener('click', () => fileInput.click());
+
+        apiList.appendChild(exportButton);
+        apiList.appendChild(importButton);
+        apiList.appendChild(fileInput);
+    }
+
+    // 导出配置
+    exportConfig() {
+        const config = {
+            nodes: [],
+            edges: []
+        };
+
+        // 收集所有节点信息
+        this.container.querySelectorAll('.flow-node').forEach(node => {
+            config.nodes.push({
+                id: node.getAttribute('data-id'),
+                type: node.getAttribute('data-type'),
+                label: node.getAttribute('data-label') || '',
+                url: node.getAttribute('data-url') || '',
+                position: {
+                    x: parseInt(node.style.left),
+                    y: parseInt(node.style.top)
+                }
+            });
+        });
+
+        // 收集所有边的信息
+        this.container.querySelectorAll('.edge').forEach(edge => {
+            config.edges.push({
+                id: edge.getAttribute('data-edge-id'),
+                source: edge.getAttribute('data-source'),
+                target: edge.getAttribute('data-target'),
+                type: edge.getAttribute('data-type'),
+                sourcePortType: edge.getAttribute('data-source-port-type'),
+                targetPortType: edge.getAttribute('data-target-port-type')
+            });
+        });
+
+        // 创建并下载配置文件
+        const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `flowchart-config-${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // 导入配置
+    async importConfig(file) {
+        if (!file) return;
+
+        try {
+            const config = JSON.parse(await file.text());
+            
+            // 清空现有的节点和边
+            this.clearAll();
+
+            // 创建节点
+            for (const nodeData of config.nodes) {
+                const node = document.createElement('div');
+                node.className = 'flow-node';
+                node.setAttribute('data-id', nodeData.id);
+                node.setAttribute('data-type', nodeData.type);
+                node.setAttribute('data-label', nodeData.label);
+                if (nodeData.url) {
+                    node.setAttribute('data-url', nodeData.url);
+                }
+
+                // 设置节点位置
+                node.style.position = 'absolute';
+                node.style.left = `${nodeData.position.x}px`;
+                node.style.top = `${nodeData.position.y}px`;
+
+                // 创建节点内容
+                node.innerHTML = this.nodeManager.createNodeContent(nodeData);
+                
+                // 添加连接点
+                this.nodeManager.addConnectionPorts(node);
+                
+                this.container.appendChild(node);
+            }
+
+            // 创建边
+            for (const edgeData of config.edges) {
+                const edge = this.edgeManager.createEdgeElement(edgeData);
+                this.container.appendChild(edge);
+                this.edges.push(edgeData);
+            }
+
+        } catch (error) {
+            console.error('Error importing config:', error);
+            alert('导入配置文件失败，请检查文件格式是否正确。');
+        }
+    }
+
+    // 清空所有节点和边
+    clearAll() {
+        // 清空节点
+        this.container.querySelectorAll('.flow-node').forEach(node => node.remove());
+        
+        // 清空边
+        this.container.querySelectorAll('.edge').forEach(edge => edge.remove());
+        
+        // 清空数组
+        this.edges = [];
+        this.nodes = [];
+        
+        // 重置计数器
+        this.nodeManager.nodeCounter = {
+            resource: 0,
+            'ai-model': 0,
+            result: 0
+        };
     }
 
     // ... 其他核心方法

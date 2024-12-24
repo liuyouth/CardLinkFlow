@@ -62,7 +62,7 @@ export class NodeManager {
     }
 
     /**
-     * 创建资源节��数据
+     * 创建资源节点数据
      * @param {string} url - 资源URL
      * @param {{x: number, y: number}} position - 节点位置
      * @returns {Object} 节点数据
@@ -284,7 +284,7 @@ export class NodeManager {
         const startNode = startPort.closest('.flow-node');
         const endNode = endPort.closest('.flow-node');
         
-        // 只验证不能连接到���己
+        // 只验证不能连接到己
         return startNode !== endNode;
     }
 
@@ -390,7 +390,7 @@ export class NodeManager {
         const modelNode = this.nodes.get(resultNode.data.parentModel);
         if (!modelNode) return null;
 
-        // 查找连接到该模型的资源节点
+        // 查找��接到该模型的资源节点
         return Array.from(this.nodes.values())
             .find(node => 
                 node.type === CONFIG.NODE_TYPES.RESOURCE &&
@@ -461,6 +461,50 @@ export class NodeManager {
             count++;
         });
         return count;
+    }
+
+    createNodeContent(nodeData) {
+        let content = `
+            <div class="node-content">
+                <div class="node-info">
+                    <div class="node-label">${nodeData.label}</div>
+                    <div class="node-type">${nodeData.type}</div>
+                </div>
+            </div>
+        `;
+
+        // 如果是资源节点且有URL，添加预览
+        if (nodeData.type === 'resource' && nodeData.url) {
+            content = `
+                <div class="node-content">
+                    <div class="resource-preview">
+                        <img src="${nodeData.url}" 
+                             alt="Resource preview" 
+                             style="width: 100%; height: 100px; object-fit: cover; border-radius: 4px;">
+                    </div>
+                    <div class="node-info">
+                        <div class="node-label">${nodeData.label}</div>
+                        <div class="node-type">${nodeData.type}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        return content;
+    }
+
+    addConnectionPorts(node) {
+        // 添加四个方向的连接点
+        const ports = `
+            <div class="node-port top" data-type="port"></div>
+            <div class="node-port bottom" data-type="port"></div>
+            <div class="node-port left" data-type="port"></div>
+            <div class="node-port right" data-type="port"></div>
+        `;
+        node.insertAdjacentHTML('beforeend', ports);
+        
+        // 初始化连接点事件
+        this.initializePortEvents(node);
     }
 
     // ... 其他辅助方法
