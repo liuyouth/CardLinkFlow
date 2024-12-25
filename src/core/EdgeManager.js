@@ -244,29 +244,30 @@ export class EdgeManager {
         
         if (!startNode || !endNode) return;
 
+        // 获取连接点类型
+        const sourcePortType = this.getPortDirection(startPort);
+        const targetPortType = this.getPortDirection(endPort);
+
         const edge = {
             id: `edge-${Date.now()}`,
             source: startNode.getAttribute('data-id'),
             target: endNode.getAttribute('data-id'),
             type: this.determineEdgeType(startNode, endNode),
-            sourcePortType: this.getPortDirection(startPort),
-            targetPortType: this.getPortDirection(endPort),
-            sourcePort: startPort,
-            targetPort: endPort
+            sourcePortType: sourcePortType,
+            targetPortType: targetPortType
         };
 
         // 创建 SVG 路径
         const edgeElement = this.createEdgeElement(edge);
+        
+        // 保存连接点类型到 SVG 元素
+        edgeElement.setAttribute('data-source-port-type', sourcePortType);
+        edgeElement.setAttribute('data-target-port-type', targetPortType);
+        
         this.flowChart.container.appendChild(edgeElement);
 
         // 添加到 flowChart 的 edges 数组中
         this.flowChart.addEdge({...edge, element: edgeElement});
-
-        // 添加创建动画
-        edgeElement.classList.add('edge-creating');
-        setTimeout(() => {
-            edgeElement.classList.remove('edge-creating');
-        }, 500);
 
         return edge;
     }
@@ -302,7 +303,12 @@ export class EdgeManager {
      */
     addEdge(edgeData) {
         this.edges.set(edgeData.id, edgeData);
-        this.renderEdge(edgeData);
+        
+        // 创建边的元素
+        const edgeElement = this.createEdgeElement(edgeData);
+        if (edgeElement) {
+            this.flowChart.container.appendChild(edgeElement);
+        }
     }
 
     /**
@@ -646,6 +652,7 @@ export class EdgeManager {
         if (port.classList.contains('bottom')) return 'bottom';
         if (port.classList.contains('left')) return 'left';
         if (port.classList.contains('right')) return 'right';
+        return 'right'; // 默认返回右侧
     }
 
     calculateControlPoints(start, end, startDir, endDir) {
@@ -691,6 +698,8 @@ export class EdgeManager {
         svg.setAttribute('data-source', edge.source);
         svg.setAttribute('data-target', edge.target);
         svg.setAttribute('data-type', edge.type);
+        svg.setAttribute('data-source-port-type', edge.sourcePortType);
+        svg.setAttribute('data-target-port-type', edge.targetPortType);
         
         svg.style.position = 'absolute';
         svg.style.width = '100%';
@@ -700,22 +709,29 @@ export class EdgeManager {
 
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         
-        // 根据边的类型设置不同的样式
-        switch (edge.type) {
-            case 'resource':
-                // 资源连线：���色
-                path.setAttribute('stroke', 'rgba(255, 255, 255, 0.3)');
-                path.setAttribute('stroke-width', '2');
-                break;
-            case 'result':
-                // 结果连线：绿色
-                path.setAttribute('stroke', 'rgba(82, 255, 168, 0.3)');
-                path.setAttribute('stroke-width', '2.5');
-                break;
-            default:
-                // 默认连线：灰色
-                path.setAttribute('stroke', 'rgba(255, 255, 255, 0.3)');
-                path.setAttribute('stroke-width', '1.5');
+        // 应用保存的样式
+        if (edge.style) {
+            path.setAttribute('stroke-width', edge.style.strokeWidth);
+            path.setAttribute('stroke', edge.style.strokeColor);
+            if (edge.style.strokeStyle !== 'none') {
+                path.setAttribute('stroke-dasharray', edge.style.strokeStyle);
+            }
+            svg.style.setProperty('--animation-speed', edge.style.animationSpeed);
+        } else {
+            // 使用默认样式
+            switch (edge.type) {
+                case 'resource':
+                    path.setAttribute('stroke', 'rgba(255, 255, 255, 0.3)');
+                    path.setAttribute('stroke-width', '2');
+                    break;
+                case 'result':
+                    path.setAttribute('stroke', 'rgba(82, 255, 168, 0.3)');
+                    path.setAttribute('stroke-width', '2.5');
+                    break;
+                default:
+                    path.setAttribute('stroke', 'rgba(255, 255, 255, 0.3)');
+                    path.setAttribute('stroke-width', '1.5');
+            }
         }
 
         path.setAttribute('fill', 'none');
@@ -773,7 +789,7 @@ export class EdgeManager {
             menu.remove();
         });
         
-        // 点击其他地方关闭菜单
+        // 点击其他地方关闭菜��
         const closeMenu = (e) => {
             if (!menu.contains(e.target)) {
                 menu.remove();

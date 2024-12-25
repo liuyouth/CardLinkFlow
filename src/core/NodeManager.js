@@ -37,7 +37,6 @@ export class NodeManager {
             const nodeData = this.createResourceNodeData(url, position);
             
             this.addNode(nodeData);
-            await this.connectToModelNodes(nodeData);
             this.flowChart.layoutManager.calculateOptimalLayout();
             
         } catch (error) {
@@ -109,7 +108,6 @@ export class NodeManager {
 
         this.addNode(nodeData);
         this.createResultNode(nodeData);
-        this.connectToResourceNodes(nodeData);
         this.flowChart.layoutManager.calculateOptimalLayout();
     }
 
@@ -149,143 +147,6 @@ export class NodeManager {
         };
 
         this.addNode(resultNode);
-
-        // 如果不是手动连接模式,才自动创建连接
-        if (!this.isManualConnectionMode) {
-            this.flowChart.edgeManager.addEdge({
-                id: `edge-${modelNode.id}-${resultNode.id}`,
-                source: modelNode.id,
-                target: resultNode.id,
-                type: 'result'
-            });
-        }
-    }
-
-    /**
-     * 连接到资源节点
-     * @param {Object} modelNode - 模型节点数据
-     */
-    connectToResourceNodes(modelNode) {
-        // 如果是手动连接模式,则不执行自动连接
-        if (this.isManualConnectionMode) return;
-
-        const resourceNodes = Array.from(this.nodes.values())
-            .filter(node => node.type === CONFIG.NODE_TYPES.RESOURCE);
-
-        resourceNodes.forEach(resourceNode => {
-            this.flowChart.edgeManager.addEdge({
-                id: `edge-${resourceNode.id}-${modelNode.id}`,
-                source: resourceNode.id,
-                target: modelNode.id,
-                type: 'resource'
-            });
-        });
-    }
-
-    /**
-     * 连接到模型节点
-     * @param {Object} resourceNode - 资源节点数据
-     */
-    connectToModelNodes(resourceNode) {
-        // 如果是手动连接模式,则不执行自动连接
-        if (this.isManualConnectionMode) return;
-
-        const modelNodes = Array.from(this.nodes.values())
-            .filter(node => node.type === CONFIG.NODE_TYPES.AI_MODEL);
-
-        modelNodes.forEach(modelNode => {
-            this.flowChart.edgeManager.addEdge({
-                id: `edge-${resourceNode.id}-${modelNode.id}`,
-                source: resourceNode.id,
-                target: modelNode.id,
-                type: 'resource'
-            });
-        });
-    }
-
-    /**
-     * 创建节点DOM元素
-     * @param {Object} nodeData - 节点数据
-     * @returns {HTMLElement} 节点元素
-     */
-    createNodeElement(nodeData) {
-        const node = document.createElement('div');
-        node.className = 'flow-node';
-        node.setAttribute('data-id', nodeData.id);
-        node.setAttribute('data-type', nodeData.type);
-        
-        // 创建节点内容
-        node.innerHTML = `
-            <div class="node-content">
-                <div class="node-icon">${nodeData.icon || ''}</div>
-                <div class="node-info">
-                    <div class="node-label">${nodeData.label}</div>
-                    <div class="node-type">${nodeData.type}</div>
-                </div>
-            </div>
-            
-            <!-- 添加四个方向的连接点,都可以作为输入输出 -->
-            <div class="node-port top" data-type="port"></div>
-            <div class="node-port bottom" data-type="port"></div>
-            <div class="node-port left" data-type="port"></div>
-            <div class="node-port right" data-type="port"></div>
-        `;
-
-        // 设置节点位置在屏幕中心
-        const centerX = window.innerWidth / 2 - 100; // 100是节点宽度的一半
-        const centerY = window.innerHeight / 2 - 50; // 50是节点高度的一半
-        
-        node.style.left = `${centerX}px`;
-        node.style.top = `${centerY}px`;
-
-        // 初始化连接点事件
-        this.initializePortEvents(node);
-        
-        return node;
-    }
-
-    initializePortEvents(node) {
-        const ports = node.querySelectorAll('.node-port');
-        
-        ports.forEach(port => {
-            // 开始连接
-            port.addEventListener('mousedown', (e) => {
-                e.stopPropagation(); // 防止与节点拖动冲突
-                this.flowChart.startConnection(port);
-            });
-
-            // 连接过程
-            port.addEventListener('mouseover', () => {
-                if (this.flowChart.connectionState.isConnecting) {
-                    const startNode = this.flowChart.connectionState.startNode;
-                    const endNode = port.closest('.flow-node');
-                    
-                    if (startNode !== endNode) {
-                        port.classList.add('connectable');
-                    }
-                }
-            });
-
-            port.addEventListener('mouseout', () => {
-                port.classList.remove('connectable');
-            });
-
-            // 结束连接
-            port.addEventListener('mouseup', () => {
-                if (this.flowChart.connectionState.isConnecting) {
-                    this.flowChart.finishConnection(port);
-                }
-            });
-        });
-    }
-
-    // 判断连接是否有效
-    isValidConnection(startPort, endPort) {
-        const startNode = startPort.closest('.flow-node');
-        const endNode = endPort.closest('.flow-node');
-        
-        // 只验证不能连接到己
-        return startNode !== endNode;
     }
 
     /**
@@ -390,7 +251,7 @@ export class NodeManager {
         const modelNode = this.nodes.get(resultNode.data.parentModel);
         if (!modelNode) return null;
 
-        // 查找��接到该模型的资源节点
+        // 查找接到该模型的资源节点
         return Array.from(this.nodes.values())
             .find(node => 
                 node.type === CONFIG.NODE_TYPES.RESOURCE &&
@@ -505,6 +366,73 @@ export class NodeManager {
         
         // 初始化连接点事件
         this.initializePortEvents(node);
+    }
+
+    createNodeElement(nodeData) {
+        const node = document.createElement('div');
+        node.className = 'flow-node';
+        node.setAttribute('data-id', nodeData.id);
+        node.setAttribute('data-type', nodeData.type);
+        node.setAttribute('data-label', nodeData.data.label || '');
+        if (nodeData.data.url) {
+            node.setAttribute('data-url', nodeData.data.url);
+        }
+        
+        // 设置节点位置
+        node.style.position = 'absolute';
+        node.style.left = `${nodeData.position.x}px`;
+        node.style.top = `${nodeData.position.y}px`;
+        
+        // 创建节点内容
+        node.innerHTML = this.createNodeContent(nodeData);
+        
+        // 添加连接点
+        this.addConnectionPorts(node);
+        
+        return node;
+    }
+
+    initializePortEvents(node) {
+        const ports = node.querySelectorAll('.node-port');
+        
+        ports.forEach(port => {
+            // 开始连接
+            port.addEventListener('mousedown', (e) => {
+                e.stopPropagation(); // 防止与节点拖动冲突
+                this.flowChart.startConnection(port);
+            });
+
+            // 连接过程
+            port.addEventListener('mouseover', () => {
+                if (this.flowChart.connectionState.isConnecting) {
+                    const startNode = this.flowChart.connectionState.startNode;
+                    const endNode = port.closest('.flow-node');
+                    
+                    if (startNode !== endNode) {
+                        port.classList.add('connectable');
+                    }
+                }
+            });
+
+            port.addEventListener('mouseout', () => {
+                port.classList.remove('connectable');
+            });
+
+            // 结束连接
+            port.addEventListener('mouseup', () => {
+                if (this.flowChart.connectionState.isConnecting) {
+                    this.flowChart.finishConnection(port);
+                }
+            });
+        });
+    }
+
+    isValidConnection(startPort, endPort) {
+        const startNode = startPort.closest('.flow-node');
+        const endNode = endPort.closest('.flow-node');
+        
+        // 只验证不能连接到自己
+        return startNode !== endNode;
     }
 
     // ... 其他辅助方法

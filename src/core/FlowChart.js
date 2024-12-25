@@ -526,16 +526,27 @@ export class FlowChart {
             });
         });
 
-        // 收集所有边的信息
-        this.container.querySelectorAll('.edge').forEach(edge => {
-            config.edges.push({
-                id: edge.getAttribute('data-edge-id'),
-                source: edge.getAttribute('data-source'),
-                target: edge.getAttribute('data-target'),
-                type: edge.getAttribute('data-type'),
-                sourcePortType: edge.getAttribute('data-source-port-type'),
-                targetPortType: edge.getAttribute('data-target-port-type')
-            });
+        // 收集所有边的信息，包括完整的属性
+        this.edges.forEach(edge => {
+            const edgeElement = this.container.querySelector(`[data-edge-id="${edge.id}"]`);
+            if (edgeElement) {
+                const path = edgeElement.querySelector('path');
+                config.edges.push({
+                    id: edge.id,
+                    source: edge.source,
+                    target: edge.target,
+                    type: edge.type,
+                    // 从 edge 对象中获取连接点类型
+                    sourcePortType: edge.sourcePortType || 'right',  // 默认值
+                    targetPortType: edge.targetPortType || 'left',   // 默认值
+                    style: {
+                        strokeWidth: path?.getAttribute('stroke-width') || '2',
+                        strokeColor: path?.getAttribute('stroke') || 'rgba(255, 255, 255, 0.3)',
+                        strokeStyle: path?.getAttribute('stroke-dasharray') || 'none',
+                        animationSpeed: edgeElement.style.getPropertyValue('--animation-speed') || '1'
+                    }
+                });
+            }
         });
 
         // 创建并下载配置文件
@@ -583,14 +594,29 @@ export class FlowChart {
                 this.nodeManager.addConnectionPorts(node);
                 
                 this.container.appendChild(node);
+                // 将节点添加到 nodes 数组
+                this.nodes.push(nodeData);
             }
 
-            // 创建边
-            for (const edgeData of config.edges) {
-                const edge = this.edgeManager.createEdgeElement(edgeData);
-                this.container.appendChild(edge);
-                this.edges.push(edgeData);
-            }
+            // 等待所有节点创建完成后再创建边
+            setTimeout(() => {
+                // 创建边
+                for (const edgeData of config.edges) {
+                    // 直接使用 EdgeManager 的 addEdge 方法添加边
+                    this.edgeManager.addEdge({
+                        id: edgeData.id,
+                        source: edgeData.source,
+                        target: edgeData.target,
+                        type: edgeData.type,
+                        sourcePortType: edgeData.sourcePortType,
+                        targetPortType: edgeData.targetPortType,
+                        style: edgeData.style
+                    });
+
+                    // 将边添加到 edges 数组
+                    this.edges.push(edgeData);
+                }
+            }, 100);
 
         } catch (error) {
             console.error('Error importing config:', error);
