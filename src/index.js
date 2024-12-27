@@ -1,4 +1,5 @@
 import { FlowChart } from './core/FlowChart.js';
+import { CONFIG } from './config/constants.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // 获取画布容器
@@ -6,6 +7,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 初始化流程图
     const flowChart = new FlowChart(container);
+    
+    // 设置添加节点按钮事件
+    const addNodeButton = document.querySelector('.add-node-button');
+    addNodeButton.addEventListener('click', () => {
+        flowChart.nodeManager.createEmptyNode(CONFIG.NODE_TYPES.RESOURCE);
+    });
     
     // 设置右键菜单
     container.addEventListener('contextmenu', (e) => {

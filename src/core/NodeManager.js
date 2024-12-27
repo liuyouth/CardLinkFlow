@@ -435,5 +435,71 @@ export class NodeManager {
         return startNode !== endNode;
     }
 
+    /**
+     * 创建空节点
+     * @param {string} type - 节点类型 (resource/ai-model/result)
+     * @returns {void}
+     */
+    createEmptyNode(type = CONFIG.NODE_TYPES.RESOURCE) {
+        try {
+            const position = this.calculateNodePosition(type);
+            const nodeData = {
+                id: `${type}-${Date.now()}`,
+                type: type,
+                position: position,
+                data: {
+                    label: this.getDefaultLabel(type),
+                    type: this.getDefaultType(type),
+                    url: '' // 对于资源节点，初始为空URL
+                }
+            };
+            
+            this.addNode(nodeData);
+            this.flowChart.layoutManager.calculateOptimalLayout();
+            
+        } catch (error) {
+            console.error('Error creating empty node:', error);
+        }
+    }
+
+    /**
+     * 获取节点默认标签
+     * @private
+     * @param {string} type - 节点类型
+     * @returns {string} 默认标签
+     */
+    getDefaultLabel(type) {
+        const count = this.getAreaNodeCount(type);
+        switch (type) {
+            case CONFIG.NODE_TYPES.RESOURCE:
+                return `资源 ${count + 1}`;
+            case CONFIG.NODE_TYPES.AI_MODEL:
+                return `模型 ${count + 1}`;
+            case CONFIG.NODE_TYPES.RESULT:
+                return `结果 ${count + 1}`;
+            default:
+                return `节点 ${count + 1}`;
+        }
+    }
+
+    /**
+     * 获取节点默认类型描述
+     * @private
+     * @param {string} type - 节点类型
+     * @returns {string} 类型描述
+     */
+    getDefaultType(type) {
+        switch (type) {
+            case CONFIG.NODE_TYPES.RESOURCE:
+                return 'Empty Resource';
+            case CONFIG.NODE_TYPES.AI_MODEL:
+                return 'Empty Model';
+            case CONFIG.NODE_TYPES.RESULT:
+                return 'Empty Result';
+            default:
+                return 'Empty Node';
+        }
+    }
+
     // ... 其他辅助方法
 } 

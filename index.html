@@ -222,10 +222,13 @@
             left: 20px;
             top: 20px;
             width: 240px;
+            display: flex;
+            gap: 8px;
         }
 
         .resource-input {
-            width: 100%;
+            flex: 1;
+            width: auto;
             padding: 12px;
             background: #2D2D2D;
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -354,7 +357,7 @@
             stroke-width: 2px;
         }
 
-        /* 确保 SVG 路径动画生效 */
+        /* 确保 SVG 路径画生效 */
         @keyframes followPath {
             to {
                 stroke-dashoffset: 0;
@@ -909,6 +912,36 @@
         .flow-node {
             cursor: move; /* 显示移动光标 */
         }
+
+        /* 添加节点按钮样式 */
+        .add-node-button {
+            width: 42px; /* 设置固定宽度使按钮成为正方形 */
+            height: 42px; /* 与输入框高度保持一致 */
+            background: #2D2D2D;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            padding: 0;
+            outline: none;
+        }
+
+        /* 添加按钮悬停效果 */
+        .add-node-button:hover {
+            background: rgba(82, 255, 168, 0.1);
+            border-color: rgba(82, 255, 168, 0.5);
+            color: rgba(82, 255, 168, 0.9);
+        }
+
+        /* 添加按钮点击效果 */
+        .add-node-button:active {
+            transform: scale(0.95);
+        }
     </style>
 </head>
 <body>
@@ -919,6 +952,7 @@
                    class="resource-input" 
                    placeholder="输入资源链接（图片/视频）并按回车"
                    id="resourceInput">
+            <button class="add-node-button" title="添加空白节点">+</button>
         </div>
 
         <!-- 底部工具栏 -->
@@ -1016,7 +1050,7 @@
                     <input type="text" id="edgeId" class="property-input" readonly>
                 </div>
                 <div class="property-item">
-                    <label>连线类型</label>
+                    <label>连线类��</label>
                     <select id="edgeType" class="property-input">
                         <option value="default">默认连线</option>
                         <option value="resource">资源连线</option>

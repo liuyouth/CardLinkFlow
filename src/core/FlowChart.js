@@ -46,7 +46,7 @@ export class FlowChart {
         this.initEventListeners();
         this.initResourceInput();
         this.initModal();
-        this.initApiList();
+        // this.initApiList();
         
         this.propertiesPanel = new PropertiesPanel(this);
         
